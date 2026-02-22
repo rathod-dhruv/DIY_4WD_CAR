@@ -11,20 +11,21 @@
 #define STCP_PIN   17
 #define PWM1_PIN   19
 
+// ✅ Ultrasonic (found working by scan)
 #define TRIG_PIN   13
 #define ECHO_PIN   14
 
 #define SERVO_PIN  25
 #define BUZZER_PIN 33
-
 #define LED1_PIN   12
 #define LED2_PIN    2
-
 #define IR_PIN      4
-
 #define TRACE_L    39
 #define TRACE_M    36
 #define TRACE_R    35
+
+// ✅ Temperature sensor (analog)
+#define TEMP_PIN   27
 
 // ---------------- Motor bits (your tested mapping) ----------------
 #define FL_FWD  0b00000001
@@ -40,15 +41,15 @@
 #define DIR_BACKWARD     (FL_BWD | FR_BWD | RL_BWD | RR_BWD)
 #define DIR_SPIN_LEFT    (FL_BWD | FR_FWD | RL_BWD | RR_FWD)
 #define DIR_SPIN_RIGHT   (FL_FWD | FR_BWD | RL_FWD | RR_BWD)
-#define DIR_STRAFE_LEFT  (FL_BWD | FR_FWD | RL_FWD | RR_BWD) // mecanum
-#define DIR_STRAFE_RIGHT (FL_FWD | FR_BWD | RL_BWD | RR_FWD) // mecanum
+#define DIR_STRAFE_LEFT  (FL_BWD | FR_FWD | RL_FWD | RR_BWD)
+#define DIR_STRAFE_RIGHT (FL_FWD | FR_BWD | RL_BWD | RR_FWD)
 #define DIR_STOP         0b00000000
 
 // ---------------- BLE ----------------
 #define BLE_NAME            "ACEBOTT_CAR_BT"
 #define SERVICE_UUID        "0000FFE0-0000-1000-8000-00805F9B34FB"
-#define CMD_CHAR_UUID       "0000FFE1-0000-1000-8000-00805F9B34FB"  // RX
-#define DATA_CHAR_UUID      "0000FFE2-0000-1000-8000-00805F9B34FB"  // TX notify
+#define CMD_CHAR_UUID       "0000FFE1-0000-1000-8000-00805F9B34FB"
+#define DATA_CHAR_UUID      "0000FFE2-0000-1000-8000-00805F9B34FB"
 
 BLECharacteristic* pDataChar = nullptr;
 
@@ -68,28 +69,25 @@ unsigned long lastSerialMs = 0;
 const unsigned long SERIAL_INTERVAL_MS = 250;
 String lastZone = "";
 
-// ---------------- PWM / Servo (LEDC v3) ----------------
+// ---------------- Servo (LEDC v3) ----------------
 static inline uint32_t servoDutyFromAngle(int angle) {
   angle = constrain(angle, 0, 180);
-  int pulseUs = map(angle, 0, 180, 1000, 2000);     // 1ms..2ms
-  // 50Hz => 20,000us period. 16-bit => 65535 max duty
+  int pulseUs = map(angle, 0, 180, 1000, 2000);
   return (uint32_t)((pulseUs / 20000.0) * 65535.0);
 }
-
 static inline void setServoAngle(int angle) {
-  ledcWrite(SERVO_PIN, servoDutyFromAngle(angle));  // v3: write by PIN
+  ledcWrite(SERVO_PIN, servoDutyFromAngle(angle));
 }
 
 // ---------------- Motor helpers ----------------
 void Move(uint8_t direction, uint8_t speed) {
-  digitalWrite(EN_PIN, LOW);         // enable motor driver (active low)
-  ledcWrite(PWM1_PIN, speed);        // speed PWM
+  digitalWrite(EN_PIN, LOW);
+  ledcWrite(PWM1_PIN, speed);
 
   digitalWrite(STCP_PIN, LOW);
   shiftOut(DATA_PIN, SHCP_PIN, MSBFIRST, direction);
   digitalWrite(STCP_PIN, HIGH);
 }
-
 void stopCar()      { Move(DIR_STOP, 0); }
 void forward()      { Move(DIR_FORWARD, SPEED); }
 void backward()     { Move(DIR_BACKWARD, SPEED); }
@@ -106,7 +104,7 @@ long readDistanceCM() {
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
 
-  long dur = pulseIn(ECHO_PIN, HIGH, 30000); // 30ms timeout
+  long dur = pulseIn(ECHO_PIN, HIGH, 30000);
   if (dur == 0) return 999;
   return dur / 58;
 }
@@ -123,9 +121,30 @@ String zoneFromDist(long d) {
   if (d < WARN_CM) return "WARN";
   return "SAFE";
 }
-
 int obstaclePresentFromZone(const String& z) {
   return (z == "WARN" || z == "DANGER") ? 1 : 0;
+}
+
+// ---------------- Temperature (Analog) ----------------
+// Choose ONE model below depending on your sensor:
+#define TEMP_MODEL_TMP36 1   // TMP36: tempC = (V - 0.5) * 100
+// #define TEMP_MODEL_LM35 1  // LM35:  tempC = V * 100
+
+float readTempC() {
+  // ADC settings: ESP32 default is 12-bit (0..4095)
+  int raw = analogRead(TEMP_PIN);
+
+  // Convert to voltage (approx). With 11dB attenuation, full-scale ~3.3V
+  float v = (raw / 4095.0f) * 3.3f;
+
+  #ifdef TEMP_MODEL_TMP36
+    float t = (v - 0.5f) * 100.0f;
+    return t;
+  #else
+    // LM35
+    float t = v * 100.0f;
+    return t;
+  #endif
 }
 
 // ---------------- Actuators ----------------
@@ -133,20 +152,18 @@ void ledsSet(bool on) {
   digitalWrite(LED1_PIN, on ? HIGH : LOW);
   digitalWrite(LED2_PIN, on ? HIGH : LOW);
 }
-
 void honkShort() {
   tone(BUZZER_PIN, 1200, 120);
 }
 
 // ---------------- BLE send JSON ----------------
-void sendSensorDataBLE(long dist, int l, int m, int r, int ir, const String& zone, int obs) {
+void sendSensorDataBLE(long dist, int l, int m, int r, int ir, float tempC, const String& zone, int obs) {
   if (!pDataChar) return;
 
-  // include zone + obs so HTML can display instantly
-  char json[128];
+  char json[160];
   snprintf(json, sizeof(json),
-           "{\"d\":%ld,\"l\":%d,\"m\":%d,\"r\":%d,\"ir\":%d,\"obs\":%d,\"zone\":\"%s\"}",
-           dist, l, m, r, ir, obs, zone.c_str());
+           "{\"d\":%ld,\"l\":%d,\"m\":%d,\"r\":%d,\"ir\":%d,\"t\":%.1f,\"obs\":%d,\"zone\":\"%s\"}",
+           dist, l, m, r, ir, tempC, obs, zone.c_str());
 
   pDataChar->setValue((uint8_t*)json, strlen(json));
   pDataChar->notify();
@@ -156,11 +173,9 @@ void sendSensorDataBLE(long dist, int l, int m, int r, int ir, const String& zon
 void handleCommand(const char* cmd) {
   if (!cmd || !cmd[0]) return;
 
-  // 2-letter commands
   if (strcmp(cmd, "SL") == 0) { strafeLeft();  return; }
   if (strcmp(cmd, "SR") == 0) { strafeRight(); return; }
 
-  // one-letter movement
   char c = cmd[0];
   if (c == 'F' || c == 'f') { forward();  return; }
   if (c == 'B' || c == 'b') { backward(); return; }
@@ -168,38 +183,11 @@ void handleCommand(const char* cmd) {
   if (c == 'R' || c == 'r') { spinRight();return; }
   if (c == 'S' || c == 's') { stopCar();  return; }
 
-  // speed V###
-  if (c == 'V' || c == 'v') {
-    SPEED = constrain(atoi(cmd + 1), 0, 255);
-    return;
-  }
-
-  // LED D0/D1
-  if (c == 'D' || c == 'd') {
-    int v = atoi(cmd + 1);
-    ledsSet(v != 0);
-    return;
-  }
-
-  // honk H1 (we just honk short; ignore off)
-  if (c == 'H' || c == 'h') {
-    int v = atoi(cmd + 1);
-    if (v != 0) honkShort();
-    return;
-  }
-
-  // servo P###
-  if (c == 'P' || c == 'p') {
-    setServoAngle(atoi(cmd + 1));
-    return;
-  }
-
-  // raw motor debug X###
-  if (c == 'X' || c == 'x') {
-    int pattern = constrain(atoi(cmd + 1), 0, 255);
-    Move((uint8_t)pattern, SPEED);
-    return;
-  }
+  if (c == 'V' || c == 'v') { SPEED = constrain(atoi(cmd + 1), 0, 255); return; }
+  if (c == 'D' || c == 'd') { ledsSet(atoi(cmd + 1) != 0); return; }
+  if (c == 'H' || c == 'h') { if (atoi(cmd + 1) != 0) honkShort(); return; }
+  if (c == 'P' || c == 'p') { setServoAngle(atoi(cmd + 1)); return; }
+  if (c == 'X' || c == 'x') { Move((uint8_t)constrain(atoi(cmd + 1), 0, 255), SPEED); return; }
 }
 
 class CmdCallback : public BLECharacteristicCallbacks {
@@ -213,7 +201,7 @@ class CmdCallback : public BLECharacteristicCallbacks {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("=== ACEBOTT BLE CAR (Obstacle + Trace + IR logs) ===");
+  Serial.println("=== ACEBOTT BLE CAR (TRIG=13 ECHO=14 TEMP=27) ===");
 
   pinMode(SHCP_PIN, OUTPUT);
   pinMode(EN_PIN, OUTPUT);
@@ -225,7 +213,6 @@ void setup() {
 
   pinMode(LED1_PIN, OUTPUT);
   pinMode(LED2_PIN, OUTPUT);
-
   pinMode(BUZZER_PIN, OUTPUT);
 
   pinMode(IR_PIN, INPUT);
@@ -233,22 +220,26 @@ void setup() {
   pinMode(TRACE_M, INPUT);
   pinMode(TRACE_R, INPUT);
 
-  // PWM for motor speed
+  // PWM
   ledcAttach(PWM1_PIN, 1000, 8);
   ledcWrite(PWM1_PIN, 0);
 
-  // Servo PWM (50Hz, 16-bit)
+  // Servo PWM
   ledcAttach(SERVO_PIN, 50, 16);
   setServoAngle(90);
+
+  // ADC config for temp (helps if sensor output is up to ~3.3V)
+  analogReadResolution(12);
+  analogSetPinAttenuation(TEMP_PIN, ADC_11db);
 
   ledsSet(false);
   stopCar();
 
-  // BLE init
+  // BLE
   BLEDevice::init(BLE_NAME);
   BLEServer* server = BLEDevice::createServer();
   BLEService* svc = server->createService(SERVICE_UUID);
-  
+
   BLECharacteristic* cmdChar = svc->createCharacteristic(
     CMD_CHAR_UUID,
     BLECharacteristic::PROPERTY_WRITE_NR
@@ -259,7 +250,7 @@ void setup() {
     DATA_CHAR_UUID,
     BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
   );
-  pDataChar->addDescriptor(new BLE2902()); // required for notifications
+  pDataChar->addDescriptor(new BLE2902());
 
   svc->start();
   BLEAdvertising* adv = BLEDevice::getAdvertising();
@@ -272,7 +263,6 @@ void setup() {
 void loop() {
   const unsigned long now = millis();
 
-  // read + notify BLE
   if (now - lastSensorMs >= SENSOR_INTERVAL_MS) {
     lastSensorMs = now;
 
@@ -280,14 +270,14 @@ void loop() {
     int l,m,r;
     readTrace(l,m,r);
     int ir = digitalRead(IR_PIN);
+    float tC = readTempC();
 
     String zone = zoneFromDist(dist);
     int obs = obstaclePresentFromZone(zone);
 
-    sendSensorDataBLE(dist, l, m, r, ir, zone, obs);
+    sendSensorDataBLE(dist, l, m, r, ir, tC, zone, obs);
   }
 
-  // serial debug logs
   if (now - lastSerialMs >= SERIAL_INTERVAL_MS) {
     lastSerialMs = now;
 
@@ -295,6 +285,7 @@ void loop() {
     int l,m,r;
     readTrace(l,m,r);
     int ir = digitalRead(IR_PIN);
+    float tC = readTempC();
 
     String zone = zoneFromDist(dist);
     int obs = obstaclePresentFromZone(zone);
@@ -308,9 +299,10 @@ void loop() {
     Serial.print("  trace=");
     Serial.print(l); Serial.print(m); Serial.print(r);
     Serial.print("  irRaw=");
-    Serial.println(ir);
+    Serial.print(ir);
+    Serial.print("  tempC=");
+    Serial.println(tC, 1);
 
-    // only print on zone changes too (nice “event” log)
     if (zone != lastZone) {
       lastZone = zone;
       Serial.print("EVENT: OBSTACLE_ZONE_CHANGED -> ");

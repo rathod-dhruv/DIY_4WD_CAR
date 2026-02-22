@@ -48,7 +48,12 @@
     <div class="card">
       <div class="muted">Sensors</div>
       <div class="big"><span id="dist">—</span><span class="muted"> cm</span></div>
-      <div class="muted">IR raw: <b id="ir">—</b></div>
+
+      <div class="muted" style="margin-top:6px;">
+        Temperature: <b id="temp">—</b> °C
+      </div>
+
+      <div class="muted" style="margin-top:6px;">IR raw: <b id="ir">—</b></div>
 
       <div style="margin-top:8px" class="muted">Trace (L M R)</div>
       <div class="trace">
@@ -62,7 +67,6 @@
       </label>
     </div>
 
-    <!-- NEW: OBSTACLE DASHBOARD -->
     <div class="card">
       <div class="muted">Obstacle Status (Realtime)</div>
       <div id="obsStatus" class="big">—</div>
@@ -106,7 +110,7 @@
     </div>
 
     <div class="card">
-      <div class="muted">Log (zone changes + trace/IR snapshots)</div>
+      <div class="muted">Log (zone changes + trace/IR/temp snapshots)</div>
       <div id="log">—</div>
     </div>
   </div>
@@ -149,11 +153,10 @@
 
     distEl.textContent = (dist >= 999) ? '—' : dist;
 
-    // prefer ESP's zone/obs if present, otherwise compute
     let z = zone || zoneFromDist(dist);
     let present = (typeof obs === 'number') ? obs : (z === 'WARN' || z === 'DANGER');
 
-    let color = '#21ff8b'; // green
+    let color = '#21ff8b';
     if (z === 'NO_ECHO') color = '#9fb3e5';
     if (z === 'WARN') color = '#ffd84a';
     if (z === 'DANGER') color = '#ff3b5c';
@@ -164,7 +167,6 @@
     presEl.textContent = present ? 'YES' : 'NO';
     presEl.style.color = present ? '#ff3b5c' : '#21ff8b';
 
-    // bar uses distance 0..100cm
     const pct = Math.max(0, Math.min(100, (dist >= 999 ? 0 : dist)));
     barEl.style.width = pct + '%';
     barEl.style.background = color;
@@ -232,9 +234,11 @@
 
     const dist = data.d;
     const ir   = data.ir;
+    const temp = data.t;
 
     document.getElementById('dist').textContent = (dist>=999)?'—':dist;
     document.getElementById('ir').textContent   = (ir===undefined)?'—':ir;
+    document.getElementById('temp').textContent = (temp===undefined)?'—':temp;
 
     setTrace('tL', data.l);
     setTrace('tM', data.m);
@@ -243,22 +247,18 @@
     const zone = data.zone || zoneFromDist(dist);
     updateObstacleUI(dist, zone, data.obs);
 
-    // console snapshots (debug)
     const now = Date.now();
     if (now - lastPrint > 250){
       lastPrint = now;
       console.log('SENSORS:', data);
     }
 
-    // zone-change logs
     if (zone !== lastZone){
       lastZone = zone;
-      console.log('OBSTACLE_ZONE:', zone, 'dist=', dist, 'trace=', `${data.l}${data.m}${data.r}`, 'ir=', ir);
-      log(`Obstacle: ${zone} (dist=${dist}cm) | trace=${data.l}${data.m}${data.r} | ir=${ir}`);
+      log(`Obstacle: ${zone} (dist=${dist}cm) | trace=${data.l}${data.m}${data.r} | ir=${ir} | temp=${temp}C`);
     }
   }
 
-  // Hold-to-move helpers
   function hold(btnId, cmd){
     const el = document.getElementById(btnId);
     const down = (e)=>{ e.preventDefault(); send(cmd); };
@@ -293,7 +293,7 @@
     log('LED = ' + (ledOn?'ON':'OFF'));
   });
 
-  hold('HONK','H1'); // ok if release sends S; honk is short
+  hold('HONK','H1');
 </script>
 </body>
 </html>
