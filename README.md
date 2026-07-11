@@ -1,6 +1,6 @@
-# ACEBOTT Car BLE Dashboard (ESP32 + Web Bluetooth)
+# Rover BLE Dashboard (ESP32 + Web Bluetooth)
 
-Control an ACEBOTT mecanum car from your browser using **Web Bluetooth (BLE)** and an **ESP32**.  
+Control an ACEBOTT mecanum rover from your browser using **Web Bluetooth (BLE)** and an **ESP32**.  
 This version includes a **full dashboard**: driving + strafe, servo, LEDs, buzzer, and **realtime sensor streaming** (ultrasonic obstacle, trace/line sensors, IR raw, and analog temperature).
 
 ---
