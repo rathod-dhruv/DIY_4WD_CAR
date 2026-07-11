@@ -76,6 +76,14 @@ Fields:
 
 ---
 
+## Demo Videos
+
+[![Watch the demo](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://drive.google.com/file/d/1FrwFAELXeMdIogRRiJJ_auQyaVEOvNOy/view?usp=sharing)
+
+**[Full Demo Video](https://drive.google.com/file/d/1FrwFAELXeMdIogRRiJJ_auQyaVEOvNOy/view?usp=sharing)** - Complete walkthrough of the web interface and VR controller in action.
+
+---
+
 ## Pin Map (current working setup)
 
 ### Motors (shift register)
@@ -111,7 +119,7 @@ Fields:
 
 ## Troubleshooting
 
-### “GATT Error: Not supported.”
+### "GATT Error: Not supported."
 - Firmware and HTML UUIDs do not match, **or**
 - Firmware did not create the `FFE2` notify characteristic.
 Flash the latest `car_ble.ino` and ensure the HTML uses FFE0/FFE1/FFE2.
@@ -120,12 +128,12 @@ Flash the latest `car_ble.ino` and ensure the HTML uses FFE0/FFE1/FFE2.
 - Common cause: **loose connector** on the ultrasonic header (works only when pressing the plug).
 - Fix: push connector fully, swap cable, add strain relief (tape/hot glue), or re-solder header.
 
-### IR value doesn’t “change”
+### IR value doesn't "change"
 - Many IR receivers output **HIGH (1)** when idle.
 - It changes only when you point an IR remote and press buttons.
-- For decoded button codes, we’d add IR decoding (protocol handling).
+- For decoded button codes, we'd add IR decoding (protocol handling).
 
-### Web Bluetooth doesn’t connect
+### Web Bluetooth doesn't connect
 - Must use **Chrome/Edge**
 - Must use **https://** or **localhost**
 - Ensure Bluetooth is enabled and site permissions allow Bluetooth
