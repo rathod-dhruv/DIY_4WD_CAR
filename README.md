@@ -40,7 +40,6 @@ This version includes a **full dashboard**: driving + strafe, servo, LEDs, buzze
 - **Serve the HTML over `https://` or `http://localhost`** (Web Bluetooth will not work from `file://`)
 
 ---
-
 ## Quick Start
 
 1. **Flash firmware**
