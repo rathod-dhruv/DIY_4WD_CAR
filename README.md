@@ -5,6 +5,14 @@ This version includes a **full dashboard**: driving + strafe, servo, LEDs, buzze
 
 ---
 
+<img width="705" height="447" alt="3" src="https://github.com/user-attachments/assets/0684d24f-a76e-433d-afa1-9e0c68ae5402" />
+<img width="687" height="457" alt="5" src="https://github.com/user-attachments/assets/ab7d8844-0c57-4314-b3aa-8156969004c8" />
+<img width="695" height="459" alt="4" src="https://github.com/user-attachments/assets/1acc95c5-0fbe-4f49-ad21-dbcfba16723a" />
+<img width="833" height="450" alt="2" src="https://github.com/user-attachments/assets/a4ba451d-c102-42b1-a98b-8a61b2915fcc" />
+<img width="191" height="401" alt="1" src="https://github.com/user-attachments/assets/fbe0104e-fb6f-4f2b-aecf-6522bb5e76b9" />
+
+---
+
 ## Files
 
 | File | Description |
